@@ -73,6 +73,17 @@ The tone is *peaceful*: no gamification pressure, no notifications, no social fe
 - **Copy voice**: warm and respectful of animals ("Neighbors nearby", "Along your way, you may meet…").
 - **Layout**: full-bleed map; floating glassmorphic panels (mode switcher top, detail card / route itinerary side panel); fully responsive.
 
+### Map presence language (informed by prototype review)
+- Wild sightings appear as **soft halo photo markers** — a circular thumbnail with a
+  translucent glow suggesting an area of presence, never a sharp pin. This keeps the
+  map calm and honest (observation coords are approximate anyway).
+- Animal places use small distinct **icon badges** so the two layers read apart at a glance.
+- Route mode surfaces a **calm ambient banner** ("Along your way, you may meet 12 wild
+  neighbors"), never alarm-styled warnings — no red/orange alert visual language anywhere.
+- Detail opens as a light side card / bottom sheet that never covers the whole map.
+- Explicitly rejected from the reference prototype: speed-based mode switching, rescue
+  reporting, voice/camera capture, user accounts, and alert-red visual language.
+
 ## 7. Technical Approach
 
 - **Stack**: Vite + React + Leaflet (react-leaflet) + Tailwind CSS. Single-page app, pure frontend.
