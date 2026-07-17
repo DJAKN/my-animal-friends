@@ -8,6 +8,10 @@ your location, or along a road trip between any two places. Tap any animal
 to learn its story, its conservation status, and how to live kindly
 alongside it.
 
+Nearby observations can also become a calm circular nature walk. A Time
+Lens explains typical activity at dawn, day, dusk, and night, while supported
+bird cards offer a manually played, attributed field recording.
+
 Built as a 2-hour hackathon project. See [PRD.md](PRD.md) for the full
 product spec.
 
@@ -16,6 +20,7 @@ product spec.
 ```bash
 cd app
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
@@ -27,10 +32,28 @@ and say hello to the neighbors.
   farms are precise icon pins. Toggle layers top-right.
 - **Route** — enter a start and destination (e.g. Shibuya → Roppongi) to see
   who lives along the road.
+- **Gentle walk** — create a 30–45 minute pedestrian loop through three to
+  five nearby animal observations, with calm OpenAI-generated field guidance.
+- **Time Lens and soundscape** — shift activity emphasis by time of day and
+  listen to attributed xeno-canto recordings on supported bird cards.
 
-All data comes from free public APIs (iNaturalist, OpenStreetMap Overpass,
-OSRM, Nominatim, Wikipedia) — no keys, no backend, everything runs in the
-browser.
+Core discovery data comes from iNaturalist, OpenStreetMap Overpass, OSRM,
+Nominatim, and Wikipedia. The optional nature-walk and soundscape features use
+same-origin server endpoints so credentials never enter the browser.
+
+## Optional feature configuration
+
+Set these values in `app/.env.local` for local development, and as server-side
+environment variables in deployment:
+
+- `OPENAI_API_KEY` and optional `OPENAI_MODEL` for structured walk narration.
+- `OPENROUTESERVICE_API_KEY` for real `foot-walking` loop geometry.
+- `XENO_CANTO_API_KEY` for bird recordings.
+
+Without these keys, the app remains usable: Gentle Walk produces a clearly
+labelled observation preview, and bird cards omit the audio player. The local
+development command starts both Vite and the small API server. Deployments that
+support Node serverless functions can use the handlers in `app/api/`.
 
 ## Fast, offline-safe demo
 

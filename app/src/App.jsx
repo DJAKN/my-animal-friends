@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MapView from './MapView.jsx'
 import DetailCard from './DetailCard.jsx'
 import {
@@ -6,6 +6,9 @@ import {
 } from './api.js'
 import { FACTS, TAXON_META } from './content.js'
 import { DEMO_PLACES, demoPlaceLookup, DEMO_SCENARIOS } from './demo.js'
+import { activityEmphasis, getActivityProfile, getSeason, getTimeBucket, TIME_BUCKETS } from './activity.js'
+import { requestNatureWalk } from './featureApi.js'
+import { buildWalkCandidates } from './walkGuide.js'
 
 // Default to Shibuya — a data-rich demo scene — when location is unavailable.
 const FALLBACK = { ...DEMO_PLACES.shibuya, key: 'shibuya' }
@@ -37,7 +40,13 @@ export default function App() {
   const [status, setStatus] = useState({ text: 'Finding your neighborhood…', busy: true })
   const [banner, setBanner] = useState(null)
   const [factIdx, setFactIdx] = useState(0)
+  const [nearbyCenter, setNearbyCenter] = useState(FALLBACK)
+  const [timeBucket, setTimeBucket] = useState(() => getTimeBucket())
+  const [walkState, setWalkState] = useState({ busy: false, guide: null, error: null })
   const loadSeq = useRef(0)
+  const season = useMemo(() => getSeason(new Date(), nearbyCenter.lat), [nearbyCenter.lat])
+  const displayWild = useMemo(() => [...wild].sort((a, b) =>
+    activityEmphasis(getActivityProfile(b), timeBucket) - activityEmphasis(getActivityProfile(a), timeBucket)), [wild, timeBucket])
 
   // Rotate one gentle fact in the footer
   useEffect(() => {
@@ -51,6 +60,8 @@ export default function App() {
     setStatus({ text: `Meeting the neighbors around ${label}…`, busy: true })
     setSelected(null)
     setRoute(null)
+    setWalkState({ busy: false, guide: null, error: null })
+    setNearbyCenter({ lat, lng, label })
     setView({ center: [lat, lng], zoom: 12 })
     const { wild: w, places: p } = await getNearbyData(lat, lng, snapshotKey)
     if (seq !== loadSeq.current) return
@@ -141,6 +152,43 @@ export default function App() {
     setView({ center: [item.lat, item.lng], zoom: 14 })
   }
 
+  const createGentleWalk = async () => {
+    const candidates = buildWalkCandidates(wild.map((animal) => ({
+      ...animal,
+      activityScore: activityEmphasis(getActivityProfile(animal), timeBucket),
+    })), nearbyCenter, { radiusKm: 1.5 })
+    if (candidates.length < 2) {
+      setWalkState({ busy: false, guide: null, error: 'Not enough nearby observations for a walk yet. Try a park or another neighborhood.' })
+      return
+    }
+    setWalkState({ busy: true, guide: null, error: null })
+    try {
+      const guide = await requestNatureWalk({
+        areaLabel: nearbyCenter.label || 'your neighborhood',
+        start: { lat: nearbyCenter.lat, lng: nearbyCenter.lng },
+        timeBucket,
+        season,
+        candidates,
+      })
+      setWalkState({ busy: false, guide, error: null })
+      setRoute(guide.route)
+      setSelected(null)
+      if (guide.route?.latlngs?.length) {
+        setView({ bounds: boundsFor(guide.route.latlngs) })
+        setBanner(`A ${Math.round(guide.durationMin)}-minute gentle loop, guided by the animals nearby`)
+      } else {
+        setBanner('A gentle observation guide is ready; walking directions are unavailable right now')
+      }
+    } catch (error) {
+      setWalkState({ busy: false, guide: null, error: error.message })
+    }
+  }
+
+  const selectWalkStop = (stop) => {
+    const animal = wild.find((item) => item.id === stop.id)
+    if (animal) selectAndPan(animal)
+  }
+
   const switchMode = (m) => {
     setMode(m)
     setBanner(null)
@@ -155,9 +203,9 @@ export default function App() {
   return (
     <div className="app">
       <MapView
-        view={view} user={user} wild={wild} places={places} route={route}
+        view={view} user={user} wild={displayWild} places={places} route={route}
         showWild={showWild} showPlaces={showPlaces}
-        selectedId={selected?.id} onSelect={setSelected}
+        selectedId={selected?.id} onSelect={setSelected} timeBucket={timeBucket}
       />
 
       <header className="header glass">
@@ -180,19 +228,23 @@ export default function App() {
       </div>
 
       {mode === 'nearby'
-        ? <NearbyPanel status={status} onSearch={searchPlace} />
+        ? <NearbyPanel
+            status={status} onSearch={searchPlace}
+            timeBucket={timeBucket} onTimeBucket={setTimeBucket} season={season}
+            walkState={walkState} onCreateWalk={createGentleWalk} onPickStop={selectWalkStop}
+          />
         : <RoutePanel status={status} wild={wild} selected={selected} onGo={planRoute} onPick={selectAndPan} />}
 
       {banner && <div className="banner glass">🌿 {banner}</div>}
 
-      <DetailCard item={selected} onClose={() => setSelected(null)} />
+      <DetailCard item={selected} timeBucket={timeBucket} season={season} onClose={() => setSelected(null)} />
 
       <div className="fact glass"><b>Did you know?</b> {FACTS[factIdx]}</div>
     </div>
   )
 }
 
-function NearbyPanel({ status, onSearch }) {
+function NearbyPanel({ status, onSearch, timeBucket, onTimeBucket, season, walkState, onCreateWalk, onPickStop }) {
   const [q, setQ] = useState('')
   const submit = (e) => { e.preventDefault(); onSearch(q) }
   return (
@@ -204,7 +256,46 @@ function NearbyPanel({ status, onSearch }) {
         <button className="btn" type="submit">Go</button>
       </form>
       <StatusLine status={status} />
+      <div className="time-lens" aria-label="Time lens">
+        <div className="time-lens-heading"><b>Time lens</b><span>{season}</span></div>
+        <div className="time-options">
+          {TIME_BUCKETS.map((bucket) => (
+            <button key={bucket} className={bucket === timeBucket ? 'active' : ''} onClick={() => onTimeBucket(bucket)}>
+              {timeIcon(bucket)} {capitalize(bucket)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button className="btn walk-cta" disabled={status.busy || walkState.busy} onClick={onCreateWalk}>
+        {walkState.busy ? 'Weaving your walk…' : '🍃 Create a gentle walk'}
+      </button>
+      {walkState.error && <span className="status error">{walkState.error}</span>}
+      {walkState.guide && <WalkGuide guide={walkState.guide} onPickStop={onPickStop} />}
     </section>
+  )
+}
+
+function WalkGuide({ guide, onPickStop }) {
+  return (
+    <div className="walk-guide">
+      <div className="walk-guide-heading">
+        <b>Your gentle loop</b>
+        {guide.routingAvailable
+          ? <span>{guide.distanceKm.toFixed(1)} km · {Math.round(guide.durationMin)} min</span>
+          : <span>Observation preview</span>}
+      </div>
+      <p>{guide.opening}</p>
+      <div className="walk-stops">
+        {guide.stops.map((stop) => (
+          <button key={stop.id} onClick={() => onPickStop(stop)}>
+            <b>{stop.title}</b>
+            <span>{stop.narration}</span>
+            <small>{stop.coexistenceTip}</small>
+          </button>
+        ))}
+      </div>
+      <p className="walk-closing">{guide.closing}</p>
+    </div>
   )
 }
 
@@ -246,4 +337,18 @@ function RoutePanel({ status, wild, selected, onGo, onPick }) {
 function StatusLine({ status }) {
   if (status.busy) return <span className="loading-pill">{status.text}</span>
   return <span className={`status${status.error ? ' error' : ''}`}>{status.text}</span>
+}
+
+function boundsFor(latlngs) {
+  const lats = latlngs.map(([lat]) => lat)
+  const lngs = latlngs.map(([, lng]) => lng)
+  return [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]]
+}
+
+function timeIcon(bucket) {
+  return { dawn: '🌅', day: '☀️', dusk: '🌆', night: '🌙' }[bucket]
+}
+
+function capitalize(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
