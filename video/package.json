@@ -1,0 +1,18 @@
+{
+  "name": "video",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pitch video for My Animal Friends, composed from the real app components with Remotion.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Opening out/opening.mp4",
+    "still": "remotion still Opening out/opening.png --frame=165",
+    "capture:map": "node scripts/capture-map.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.0"
+  }
+}

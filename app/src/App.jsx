@@ -4,8 +4,9 @@ import DetailCard from './DetailCard.jsx'
 import {
   geocode, getNearbyData, getRouteData, aggregateSpecies,
 } from './api.js'
-import { FACTS, TAXON_META } from './content.js'
+import { FACTS } from './content.js'
 import { DEMO_PLACES, demoPlaceLookup, DEMO_SCENARIOS } from './demo.js'
+import { HeaderBar, LayerToggles, NearbyPanel, RoutePanel } from './chrome.jsx'
 
 // Default to Shibuya — a data-rich demo scene — when location is unavailable.
 const FALLBACK = { ...DEMO_PLACES.shibuya, key: 'shibuya' }
@@ -152,24 +153,12 @@ export default function App() {
         selectedId={selected?.id} onSelect={setSelected}
       />
 
-      <header className="header glass">
-        <div className="brand">
-          <span className="brand-mark">🦝</span>
-          <div>
-            <div className="brand-name">My Animal Friends</div>
-            <div className="brand-sub">the world we share</div>
-          </div>
-        </div>
-        <nav className="mode-switch">
-          <button className={mode === 'nearby' ? 'active' : ''} onClick={() => switchMode('nearby')}>Nearby</button>
-          <button className={mode === 'route' ? 'active' : ''} onClick={() => switchMode('route')}>Route</button>
-        </nav>
-      </header>
+      <HeaderBar mode={mode} onSwitch={switchMode} />
 
-      <div className="layers glass">
-        <button className={showWild ? 'on' : ''} onClick={() => setShowWild(!showWild)}>🐾 Wild</button>
-        <button className={showPlaces ? 'on' : ''} onClick={() => setShowPlaces(!showPlaces)}>🏡 Places</button>
-      </div>
+      <LayerToggles
+        showWild={showWild} showPlaces={showPlaces}
+        onWild={() => setShowWild(!showWild)} onPlaces={() => setShowPlaces(!showPlaces)}
+      />
 
       {mode === 'nearby'
         ? <NearbyPanel status={status} onSearch={searchPlace} />
@@ -184,58 +173,3 @@ export default function App() {
   )
 }
 
-function NearbyPanel({ status, onSearch }) {
-  const [q, setQ] = useState('')
-  const submit = (e) => { e.preventDefault(); onSearch(q) }
-  return (
-    <section className="panel glass">
-      <h2>Neighbors nearby</h2>
-      <p className="hint">Wild sightings glow softly on the map; zoos, aquariums and animal cafes wear little badges. Tap anyone to meet them.</p>
-      <form className="field" onSubmit={submit}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Explore another place… e.g. Shimonoseki" />
-        <button className="btn" type="submit">Go</button>
-      </form>
-      <StatusLine status={status} />
-    </section>
-  )
-}
-
-function RoutePanel({ status, wild, selected, onGo, onPick }) {
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const submit = (e) => { e.preventDefault(); onGo(from, to) }
-  return (
-    <section className="panel glass">
-      <h2>Along your way</h2>
-      <p className="hint">Pick a start and a destination — we’ll follow the road and introduce who lives beside it.</p>
-      <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div className="field"><input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="From… e.g. Shibuya" /></div>
-        <div className="field">
-          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="To… e.g. Roppongi" />
-          <button className="btn" type="submit" disabled={status.busy}>Go</button>
-        </div>
-      </form>
-      <StatusLine status={status} />
-      {wild.length > 0 && (
-        <div className="encounters">
-          {wild.map((s) => (
-            <button key={s.id} className={`encounter${selected?.id === s.id ? ' selected' : ''}`} onClick={() => onPick(s)}>
-              {s.photo
-                ? <img src={s.photo} alt="" />
-                : <div className="thumb-fallback">{TAXON_META[s.iconicTaxon]?.emoji || '🐾'}</div>}
-              <div>
-                <div className="enc-name">{s.commonName}</div>
-                <div className="enc-sub">{s.sciName}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function StatusLine({ status }) {
-  if (status.busy) return <span className="loading-pill">{status.text}</span>
-  return <span className={`status${status.error ? ' error' : ''}`}>{status.text}</span>
-}

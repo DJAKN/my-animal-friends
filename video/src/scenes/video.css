@@ -1,0 +1,30 @@
+/* Video-only chrome (titles, lower-thirds) layered over the real app UI. */
+
+.v-title {
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #34402e;
+}
+.v-title-main {
+  font-family: ui-serif, 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-size: 54px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.v-title-sub {
+  font-size: 22px;
+  color: #55654c;
+  margin-top: 6px;
+}
+
+/* Detail-card photo fallback shows a large emoji; make it feel intentional. */
+.detail-photo-fallback { font-size: 60px; }
+
+/* The app's CSS entrance animations (`animation: rise/drift-in … both`) are
+   time-based and non-deterministic under Remotion's frame rendering, leaving
+   elements stuck at their `from` (opacity 0). We drive entrances with Remotion
+   springs instead, so disable the CSS ones here. */
+.header, .layers, .panel, .detail, .banner, .fact { animation: none !important; }

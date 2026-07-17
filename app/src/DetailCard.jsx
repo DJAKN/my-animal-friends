@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import { fetchWikiSummary } from './api.js'
 import { TAXON_META, COEXIST_TIPS, PLACE_META, CONSERVATION } from './content.js'
 
-export default function DetailCard({ item, onClose }) {
-  const [wiki, setWiki] = useState(null)
+// `initialWiki` lets callers (e.g. the pitch-video project) inject the summary
+// up front for deterministic rendering; the app itself never passes it.
+export default function DetailCard({ item, onClose, initialWiki = null }) {
+  const [wiki, setWiki] = useState(initialWiki)
 
   useEffect(() => {
+    if (initialWiki) return
     setWiki(null)
     if (item?.kind === 'wild') {
       let alive = true
       fetchWikiSummary(item).then((w) => alive && setWiki(w))
       return () => { alive = false }
     }
-  }, [item])
+  }, [item, initialWiki])
 
   if (!item) return null
 
