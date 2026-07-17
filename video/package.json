@@ -6,8 +6,8 @@
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render Opening out/opening.mp4",
-    "still": "remotion still Opening out/opening.png --frame=165",
-    "capture:map": "node scripts/capture-map.mjs"
+    "render:route": "remotion render RouteFlythrough out/route-flythrough.mp4",
+    "capture:route": "node scripts/capture-route.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.0",

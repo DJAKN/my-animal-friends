@@ -28,3 +28,53 @@
    elements stuck at their `from` (opacity 0). We drive entrances with Remotion
    springs instead, so disable the CSS ones here. */
 .header, .layers, .panel, .detail, .banner, .fact { animation: none !important; }
+
+/* ——— Route flythrough ——— */
+.fly-halo {
+  position: relative;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(125, 143, 112, 0.42) 0%, rgba(125, 143, 112, 0) 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fly-emoji {
+  border-radius: 50%;
+  background: rgba(253, 251, 244, 0.95);
+  border: 3px solid #fff;
+  box-shadow: 0 8px 22px rgba(52, 64, 46, 0.3);
+  width: 62%;
+  height: 62%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fly-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  white-space: nowrap;
+  text-align: center;
+  transform-origin: bottom center;
+}
+.fly-name { display: block; font-weight: 700; font-size: 19px; color: #34402e; }
+.fly-sci { display: block; font-style: italic; font-size: 14px; color: #6b7562; }
+
+.fly-progress {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 22px;
+}
+.fly-city { font-weight: 600; font-size: 18px; color: #55654c; }
+.fly-track { width: 360px; height: 7px; border-radius: 999px; background: #e0dccb; overflow: hidden; }
+.fly-fill { height: 100%; border-radius: 999px; background: #7d8f70; }
