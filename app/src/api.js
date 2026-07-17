@@ -2,12 +2,26 @@
 // Every call fails soft: a broken layer never blocks the rest of the app.
 
 import { demoPlaceLookup } from './demo.js'
+import { fetchOverpass } from './overpass.js'
 
 const cache = new Map()
 
-async function cachedJson(key, url, options) {
+async function cachedJson(key, url, options, timeoutMs) {
   if (cache.has(key)) return cache.get(key)
-  const res = await fetch(url, options)
+  let res
+  if (timeoutMs) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      res = await fetch(url, { ...options, signal: controller.signal })
+    } catch (e) {
+      throw e.name === 'AbortError' ? new Error(`timed out after ${timeoutMs}ms for ${url}`) : e
+    } finally {
+      clearTimeout(timer)
+    }
+  } else {
+    res = await fetch(url, options)
+  }
   if (!res.ok) throw new Error(`${res.status} for ${url}`)
   const data = await res.json()
   cache.set(key, data)
@@ -72,34 +86,33 @@ export async function fetchWildSightings(lat, lng, radiusKm = 12, perPage = 60) 
 
 // Overpass fragments shared by nearby + route queries. `around` is the
 // spatial filter (a point radius, or a polyline corridor).
-const PLACE_FILTERS = (around) => `
+export const buildCorePlaceFilters = (around) => `
   nwr["tourism"~"^(zoo|aquarium)$"]${around};
   nwr["zoo"]${around};
-  nwr["leisure"="bird_hide"]${around};
-  nwr["amenity"="cafe"]["name"~"cat|dog|neko|owl|hedgehog|animal|bird|rabbit",i]${around};
   nwr["landuse"="farmyard"]["name"]${around};
   nwr["animal"~"petting|boarding"]${around};
 `
 
-/** Zoos, aquariums, animal cafes, farms and wildlife parks around a point, from OpenStreetMap. */
+/** Zoos, aquariums, farms and wildlife places around a point, from OpenStreetMap. */
 export async function fetchAnimalPlaces(lat, lng, radiusM = 12000) {
-  return overpassPlaces(PLACE_FILTERS(`(around:${radiusM},${lat},${lng})`))
+  return overpassPlaces(buildCorePlaceFilters(`(around:${radiusM},${lat},${lng})`))
 }
 
 /** Same as fetchAnimalPlaces but along a route corridor (Overpass linestring `around`). */
 export async function fetchPlacesAlongRoute(latlngs, radiusM = 4000) {
   const chain = latlngs.map(([la, ln]) => `${la},${ln}`).join(',')
-  return overpassPlaces(PLACE_FILTERS(`(around:${radiusM},${chain})`))
+  return overpassPlaces(buildCorePlaceFilters(`(around:${radiusM},${chain})`))
 }
 
 async function overpassPlaces(body) {
   const query = `[out:json][timeout:25];(${body});out center tags 60;`
   const key = `ovp:${query}`
-  const data = await cachedJson(key, 'https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: `data=${encodeURIComponent(query)}`,
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
+  const data = cache.has(key) ? cache.get(key) : await fetchOverpass(query)
+  cache.set(key, data)
+  return mapOverpassElements(data)
+}
+
+export function mapOverpassElements(data) {
   return (data.elements || [])
     .map((el) => {
       const lat = el.lat ?? el.center?.lat

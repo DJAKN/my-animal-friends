@@ -10,6 +10,7 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
   const layersRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const hasFlownRef = useRef(false)
 
   useEffect(() => {
     const map = L.map(elRef.current, { zoomControl: false })
@@ -30,11 +31,21 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
   }, [])
 
   // Camera moves: {center:[lat,lng], zoom} or {bounds:[[..],[..]]}
+  // The very first move lands before the container has been through a layout
+  // pass, which can make Leaflet's fly animation compute NaN — jump straight
+  // there instead (there's nothing to animate *from* yet anyway).
   useEffect(() => {
     const map = mapRef.current
     if (!map || !view) return
-    if (view.bounds) map.flyToBounds(view.bounds, { padding: [70, 70], duration: 1.2 })
-    else if (view.center) map.flyTo(view.center, view.zoom ?? 13, { duration: 1.2 })
+    const first = !hasFlownRef.current
+    hasFlownRef.current = true
+    if (view.bounds) {
+      if (first) map.fitBounds(view.bounds, { padding: [70, 70] })
+      else map.flyToBounds(view.bounds, { padding: [70, 70], duration: 1.2 })
+    } else if (view.center) {
+      if (first) map.setView(view.center, view.zoom ?? 13)
+      else map.flyTo(view.center, view.zoom ?? 13, { duration: 1.2 })
+    }
   }, [view])
 
   // User location dot

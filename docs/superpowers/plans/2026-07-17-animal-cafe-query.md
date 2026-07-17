@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restore animal cafés as an independently degradable Places source without the expensive case-insensitive Overpass name regular expression.
+**Goal:** Restore animal cafés and bird hides as independently degradable Places sources without allowing optional queries to suppress aquariums or zoos.
 
 **Architecture:** Fetch bounded named café and structured `animal=*` candidates through the shared failover client, then apply Unicode-normalized English and Japanese keyword matching in the browser. Merge and deduplicate café results after core Places have loaded.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- A café failure must never remove or delay core Places.
+- An optional café or bird-hide failure must never remove or delay core Places.
 - Keep the runtime frontend-only and keyless.
 - Preserve source OSM IDs for deterministic deduplication.
 
@@ -50,7 +50,23 @@
 - [ ] Render `Core places loaded; animal cafés are temporarily unavailable.` without changing the Wild status.
 - [ ] Run focused tests and verify GREEN.
 
-### Task 3: Benchmark and release gate
+### Task 3: Load bird hides independently
+
+**Files:**
+- Modify: `app/src/api.js`
+- Modify: `app/src/App.jsx`
+- Modify: `app/src/api.test.js`
+
+**Interfaces:**
+- Produces: `fetchBirdHides(lat, lng, radiusM) -> Promise<Place[]>` using `nwr["leisure"="bird_hide"]`.
+- Adds bird-hide results to the same optional-place merge path without changing core status.
+
+- [ ] Write a failing test proving a timed-out bird-hide request does not delay or remove an aquarium result.
+- [ ] Run the focused test and verify RED.
+- [ ] Fetch bird hides after core Places resolve, merge successful results by OSM ID, and expose an optional-data warning on failure.
+- [ ] Run the focused test and verify GREEN.
+
+### Task 4: Benchmark and release gate
 
 **Files:**
 - Create: `app/scripts/benchmark-animal-cafes.mjs`

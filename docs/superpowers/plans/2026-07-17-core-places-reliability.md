@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make aquarium, zoo, bird-hide, farm, and petting/boarding discovery survive an unavailable Overpass endpoint without being blocked by the animal-café query.
+**Goal:** Make aquarium, zoo, farm, and petting/boarding discovery survive an unavailable Overpass endpoint without being blocked by slow optional-place queries.
 
 **Architecture:** Move Overpass transport into a small dependency-injected module that validates payloads and performs sequential endpoint failover with a per-attempt timeout. Keep response mapping in `api.js`, but expose the core query builder and mapper for deterministic regression tests.
 
@@ -13,7 +13,7 @@
 - Runtime remains pure frontend with no backend, API key, or secret.
 - Public-facing code, tests, documentation, and commit metadata remain English.
 - Preserve all unrelated uncommitted workspace changes.
-- Do not include the expensive animal-café name regular expression in the core query.
+- Do not include the expensive animal-café name regular expression or bird-hide selector in the core query.
 
 ---
 
@@ -41,7 +41,7 @@ Expected: FAIL because `./overpass.js` does not exist.
 
 - [ ] **Step 3: Implement the minimal client**
 
-Implement three default endpoints, a 10,000 ms timeout, POST form encoding, validation that `elements` is an array, and sequential failover. Clear every timeout in `finally` and retain `{ endpoint, message }` for each failed attempt.
+Implement the Mail.ru, main Overpass, and Private.coffee endpoints, a 15,000 ms timeout, POST form encoding, validation that `elements` is an array, and sequential failover. Clear every timeout in `finally` and retain `{ endpoint, message }` for each failed attempt.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -62,7 +62,7 @@ Expected: all Overpass transport tests pass.
 
 - [ ] **Step 1: Write failing regression tests**
 
-Test that the core query contains `tourism` aquarium/zoo, bird hides, named farmyards, and petting/boarding selectors but not `amenity=cafe`. Test that an OSM fixture for way `221599485` maps to an `aquarium` Place named `下関市立しものせき水族館・海響館`.
+Test that the core query contains `tourism` aquarium/zoo, named farmyard, and petting/boarding selectors but contains neither `amenity=cafe` nor `leisure=bird_hide`. Test that an OSM fixture for way `221599485` maps to an `aquarium` Place named `下関市立しものせき水族館・海響館`.
 
 - [ ] **Step 2: Run tests and verify RED**
 

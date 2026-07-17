@@ -16,13 +16,13 @@ The Shimonoseki aquarium is correctly mapped in OpenStreetMap as way `221599485`
 
 Create a focused Overpass client responsible for endpoint failover and response validation. It will attempt these public endpoints sequentially:
 
-1. `https://overpass-api.de/api/interpreter`
-2. `https://overpass.kumi.systems/api/interpreter`
-3. `https://maps.mail.ru/osm/tools/overpass/api/interpreter`
+1. `https://maps.mail.ru/osm/tools/overpass/api/interpreter`
+2. `https://overpass-api.de/api/interpreter`
+3. `https://overpass.private.coffee/api/interpreter`
 
-Each attempt has a 10-second `AbortController` timeout. HTTP failures, timeouts, malformed JSON, and invalid Overpass payloads advance to the next endpoint. The first valid payload wins. If every endpoint fails, the client throws a structured error that retains per-endpoint failure details.
+Production ordering starts with the Mail.ru instance, followed by the main instance and Private.coffee, because live verification showed that ordering returns the Shimonoseki aquarium reliably. Each attempt has a 15-second `AbortController` timeout. HTTP failures, timeouts, malformed JSON, and invalid Overpass payloads advance to the next endpoint. The first valid payload wins. If every endpoint fails, the client throws a structured error that retains per-endpoint failure details.
 
-The immediate defect fix will use this client for a core Places query that includes aquariums, zoos, bird hides, named farmyards, and petting or boarding facilities. The known-expensive animal-café name expression will not remain in this core query. This guarantees that a café timeout cannot suppress a valid aquarium.
+The immediate defect fix will use this client for a core Places query that includes aquariums, zoos, named farmyards, and petting or boarding facilities. The known-expensive animal-café name expression and slow bird-hide selector will not remain in this core query. This guarantees that an optional-place timeout cannot suppress a valid aquarium. Bird hides will move to the same independently degradable follow-up path as animal cafés.
 
 The UI data contract must distinguish a successful empty result from an unavailable Places layer. Error presentation can be added without blocking Wild results, preserving the existing fail-soft experience.
 
@@ -68,11 +68,11 @@ Use Node's built-in test runner to avoid adding a test framework solely for this
 Regression coverage must prove:
 
 - A 406 response from the first endpoint advances to a successful second endpoint.
-- A timed-out endpoint advances to the next endpoint.
+- A timed-out endpoint advances to the next endpoint using the 15-second production budget.
 - Malformed payloads do not terminate failover.
 - Exhausting every endpoint throws the structured aggregate error.
 - The Shimonoseki Overpass fixture maps way `221599485` to an aquarium Place.
-- The core Places query excludes the expensive café name expression.
+- The core Places query excludes the expensive café name expression and slow bird-hide selector.
 
 Run the focused tests first, followed by the complete test command, lint, and production build.
 

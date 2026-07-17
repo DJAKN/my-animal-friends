@@ -74,7 +74,15 @@ export default function App() {
     if (!navigator.geolocation) onFallback()
     else
       navigator.geolocation.getCurrentPosition(
-        (pos) => { setUser({ lat: pos.coords.latitude, lng: pos.coords.longitude }); loadNearby(pos.coords.latitude, pos.coords.longitude, 'you') },
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            onFallback('Location is off — showing Shibuya. Search any place to explore.')
+            return
+          }
+          setUser({ lat, lng })
+          loadNearby(lat, lng, 'you')
+        },
         () => onFallback('Location is off — showing Shibuya. Search any place to explore.'),
         { timeout: 8000 },
       )

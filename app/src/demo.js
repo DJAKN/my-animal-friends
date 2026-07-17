@@ -6,6 +6,7 @@ export const DEMO_PLACES = {
   shibuya: { lat: 35.6595, lng: 139.7005, label: 'Shibuya' },
   shimonoseki: { lat: 33.9578, lng: 130.9410, label: 'Shimonoseki' },
   roppongi: { lat: 35.6628, lng: 139.7315, label: 'Roppongi' },
+  ueno: { lat: 35.7141, lng: 139.7744, label: 'Ueno' },
 }
 
 // Normalize a free-text query to a gazetteer key (case/space insensitive).
@@ -17,5 +18,5 @@ export function demoPlaceLookup(q) {
 // Scenarios warmed on startup and baked into offline snapshots.
 export const DEMO_SCENARIOS = {
   nearby: ['shibuya', 'shimonoseki'],
-  routes: [['shibuya', 'roppongi']],
+  routes: [['shibuya', 'roppongi'], ['shibuya', 'ueno']],
 }
