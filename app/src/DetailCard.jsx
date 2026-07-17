@@ -51,11 +51,11 @@ export default function DetailCard({ item, onClose }) {
         {wiki?.extract
           ? <p className="extract">{wiki.extract}</p>
           : <p className="extract" style={{ opacity: 0.55 }}>Gathering its story…</p>}
-        {(item.observedOn || item.placeGuess) && (
-          <p className="meta">
-            Seen {item.observedOn || 'recently'}{item.placeGuess ? ` · ${item.placeGuess}` : ''}
-          </p>
-        )}
+        <p className="meta">
+          {item.count > 1
+            ? `Generally seen around this area · ${item.count} recent sightings`
+            : `Seen around here${item.observedOn ? ` · ${item.observedOn}` : ''}`}
+        </p>
         <div className="tip">
           <b>Living alongside</b>
           {COEXIST_TIPS[item.iconicTaxon] || COEXIST_TIPS.Unknown}

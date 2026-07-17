@@ -2,14 +2,27 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import MapView from './MapView.jsx'
 import DetailCard from './DetailCard.jsx'
 import {
-  fetchWildSightings, fetchAnimalPlaces, fetchPlacesAlongRoute,
-  geocode, fetchRoute, fetchWikiSummary,
-  samplePolyline, simplifyPolyline, dedupeByTaxon,
+  geocode, getNearbyData, getRouteData, aggregateSpecies,
 } from './api.js'
 import { FACTS, TAXON_META } from './content.js'
+import { DEMO_PLACES, demoPlaceLookup, DEMO_SCENARIOS } from './demo.js'
 
-// A scenic, data-rich fallback for when location access is unavailable.
-const FALLBACK = { lat: 35.6852, lng: 139.7528, label: 'Tokyo' }
+// Default to Shibuya — a data-rich demo scene — when location is unavailable.
+const FALLBACK = { ...DEMO_PLACES.shibuya, key: 'shibuya' }
+
+// Warm the cache for the presentation scenarios so their searches feel instant.
+// Runs quietly in the background; failures are ignored (live fetch still works).
+function prewarmDemo() {
+  setTimeout(() => {
+    for (const key of DEMO_SCENARIOS.nearby) {
+      const p = DEMO_PLACES[key]
+      getNearbyData(p.lat, p.lng, `nearby-${key}`).catch(() => {})
+    }
+    for (const [fromKey, toKey] of DEMO_SCENARIOS.routes) {
+      getRouteData(DEMO_PLACES[fromKey], DEMO_PLACES[toKey], `route-${fromKey}-${toKey}`).catch(() => {})
+    }
+  }, 1200) // let the first, visible load claim the network first
+}
 
 export default function App() {
   const [mode, setMode] = useState('nearby')
@@ -32,49 +45,57 @@ export default function App() {
     return () => clearInterval(t)
   }, [])
 
-  const loadNearby = useCallback(async (lat, lng, label) => {
+  // snapshotKey lets demo scenarios load instantly from a captured JSON (offline-safe).
+  const loadNearby = useCallback(async (lat, lng, label, snapshotKey) => {
     const seq = ++loadSeq.current
     setStatus({ text: `Meeting the neighbors around ${label}…`, busy: true })
     setSelected(null)
     setRoute(null)
     setView({ center: [lat, lng], zoom: 12 })
-    const [w, p] = await Promise.all([
-      fetchWildSightings(lat, lng).catch(() => []),
-      fetchAnimalPlaces(lat, lng).catch(() => []),
-    ])
+    const { wild: w, places: p } = await getNearbyData(lat, lng, snapshotKey)
     if (seq !== loadSeq.current) return
-    setWild(dedupeByTaxon(w))
+    const species = aggregateSpecies(w)
+    setWild(species)
     setPlaces(p)
-    if (!w.length && !p.length) {
+    if (!species.length && !p.length) {
       setStatus({ text: 'It’s quiet here. Try searching a nearby town or park.', busy: false })
     } else {
-      setStatus({ text: `${dedupeByTaxon(w).length} wild neighbors · ${p.length} animal places near ${label}`, busy: false })
+      setStatus({ text: `${species.length} wild neighbors · ${p.length} animal places near ${label}`, busy: false })
     }
   }, [])
 
-  // On load: ask for location, fall back gracefully.
+  // On load: ask for location, fall back to the Shibuya demo scene. Then pre-warm
+  // the demo scenarios in the background so the presentation searches feel instant.
   useEffect(() => {
-    if (!navigator.geolocation) { loadNearby(FALLBACK.lat, FALLBACK.lng, FALLBACK.label); return }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        setUser({ lat, lng })
-        loadNearby(lat, lng, 'you')
-      },
-      () => {
-        setStatus({ text: 'Location is off — showing a sample neighborhood. Search any place to explore.', busy: false })
-        loadNearby(FALLBACK.lat, FALLBACK.lng, FALLBACK.label)
-      },
-      { timeout: 8000 },
-    )
+    const onFallback = (msg) => {
+      if (msg) setStatus({ text: msg, busy: false })
+      loadNearby(FALLBACK.lat, FALLBACK.lng, FALLBACK.label, `nearby-${FALLBACK.key}`)
+    }
+    if (!navigator.geolocation) onFallback()
+    else
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            onFallback('Location is off — showing Shibuya. Search any place to explore.')
+            return
+          }
+          setUser({ lat, lng })
+          loadNearby(lat, lng, 'you')
+        },
+        () => onFallback('Location is off — showing Shibuya. Search any place to explore.'),
+        { timeout: 8000 },
+      )
+    prewarmDemo()
   }, [loadNearby])
 
   const searchPlace = async (q) => {
     if (!q.trim()) return
     try {
       setStatus({ text: 'Looking that up…', busy: true })
-      const g = await geocode(q)
-      await loadNearby(g.lat, g.lng, g.label)
+      const demo = demoPlaceLookup(q)
+      const g = demo || (await geocode(q))
+      await loadNearby(g.lat, g.lng, g.label, demo ? `nearby-${q.trim().toLowerCase()}` : null)
     } catch (e) {
       setStatus({ text: e.message, busy: false, error: true })
     }
@@ -87,37 +108,27 @@ export default function App() {
       setBanner(null)
       setSelected(null)
       setStatus({ text: 'Tracing the road…', busy: true })
-      const [from, to] = await Promise.all([geocode(fromQ), geocode(toQ)])
-      const r = await fetchRoute(from, to)
+      const fromDemo = demoPlaceLookup(fromQ)
+      const toDemo = demoPlaceLookup(toQ)
+      const [from, to] = await Promise.all([fromDemo || geocode(fromQ), toDemo || geocode(toQ)])
+      const snapshotKey =
+        fromDemo && toDemo ? `route-${fromQ.trim().toLowerCase()}-${toQ.trim().toLowerCase()}` : null
+
+      setStatus({ text: 'Listening for who lives along the way…', busy: true })
+      const { route: r, wild: w, places: routePlaces } = await getRouteData(from, to, snapshotKey)
       if (seq !== loadSeq.current) return
+
       setRoute(r)
       setView({ bounds: [[Math.min(from.lat, to.lat), Math.min(from.lng, to.lng)], [Math.max(from.lat, to.lat), Math.max(from.lng, to.lng)]] })
-      setStatus({ text: 'Listening for who lives along the way…', busy: true })
 
-      const samples = samplePolyline(r.latlngs, 6)
-      const [wildBatches, routePlaces] = await Promise.all([
-        Promise.all(samples.map(([la, ln]) => fetchWildSightings(la, ln, 6, 20).catch(() => []))),
-        fetchPlacesAlongRoute(simplifyPolyline(r.latlngs)).catch(() => []),
-      ])
-      if (seq !== loadSeq.current) return
-
-      // Order encounters along the route by which sample point found them.
-      const seen = new Set()
-      const ordered = []
-      wildBatches.forEach((batch, i) => {
-        for (const s of dedupeByTaxon(batch)) {
-          if (seen.has(s.taxonId)) continue
-          seen.add(s.taxonId)
-          ordered.push({ ...s, routeLeg: i })
-        }
-      })
-      setWild(ordered)
+      // Aggregate into species, ordered along the route.
+      const species = aggregateSpecies(w).sort((a, b) => (a.routeLeg ?? 99) - (b.routeLeg ?? 99))
+      setWild(species)
       setPlaces(routePlaces)
-      const km = Math.round(r.distanceKm)
-      setStatus({ text: `${from.label} → ${to.label} · ${km} km`, busy: false })
+      setStatus({ text: `${from.label} → ${to.label} · ${Math.round(r.distanceKm)} km`, busy: false })
       setBanner(
-        ordered.length || routePlaces.length
-          ? `Along your way, you may meet ${ordered.length} wild neighbors${routePlaces.length ? ` · ${routePlaces.length} animal places` : ''}`
+        species.length || routePlaces.length
+          ? `Along your way, you may meet ${species.length} wild neighbors${routePlaces.length ? ` · ${routePlaces.length} animal places` : ''}`
           : 'A quiet road — the animals are keeping to themselves today.',
       )
     } catch (e) {
@@ -137,7 +148,7 @@ export default function App() {
     if (m === 'nearby') {
       setRoute(null)
       const c = user || FALLBACK
-      loadNearby(c.lat, c.lng, user ? 'you' : FALLBACK.label)
+      loadNearby(c.lat, c.lng, user ? 'you' : FALLBACK.label, user ? null : `nearby-${FALLBACK.key}`)
     }
   }
 
@@ -189,7 +200,7 @@ function NearbyPanel({ status, onSearch }) {
       <h2>Neighbors nearby</h2>
       <p className="hint">Wild sightings glow softly on the map; zoos, aquariums and animal cafes wear little badges. Tap anyone to meet them.</p>
       <form className="field" onSubmit={submit}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Explore another place… e.g. Kyoto" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Explore another place… e.g. Shimonoseki" />
         <button className="btn" type="submit">Go</button>
       </form>
       <StatusLine status={status} />
@@ -206,9 +217,9 @@ function RoutePanel({ status, wild, selected, onGo, onPick }) {
       <h2>Along your way</h2>
       <p className="hint">Pick a start and a destination — we’ll follow the road and introduce who lives beside it.</p>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div className="field"><input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="From… e.g. Tokyo" /></div>
+        <div className="field"><input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="From… e.g. Shibuya" /></div>
         <div className="field">
-          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="To… e.g. Nikko" />
+          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="To… e.g. Roppongi" />
           <button className="btn" type="submit" disabled={status.busy}>Go</button>
         </div>
       </form>
