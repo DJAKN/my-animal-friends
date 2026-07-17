@@ -51,21 +51,35 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
     }
   }, [user])
 
-  // Wild sighting markers — soft halo photo circles
+  // Wild animals — a soft "distribution cloud" (range in meters) with the species
+  // photo floating at its centre. Conveys general presence, not a precise pin.
   useEffect(() => {
     const g = layersRef.current?.wild
     if (!g) return
     g.clearLayers()
     if (!showWild) return
     for (const s of wild) {
+      const sel = s.id === selectedId
+      if (s.spreadM) {
+        L.circle([s.lat, s.lng], {
+          radius: s.spreadM,
+          stroke: sel,
+          color: '#7d8f70',
+          weight: 1.5,
+          fillColor: '#7d8f70',
+          fillOpacity: sel ? 0.22 : 0.13,
+          className: 'wild-range',
+          interactive: false,
+        }).addTo(g)
+      }
       const fallback = TAXON_META[s.iconicTaxon]?.emoji || '🐾'
-      const sel = s.id === selectedId ? ' selected' : ''
       const inner = s.photo
         ? `<div class="wild-thumb" style="background-image:url('${s.photo}')"></div>`
         : `<div class="wild-thumb">${fallback}</div>`
+      const count = s.count > 1 ? `<span class="wild-count">${s.count}</span>` : ''
       const icon = L.divIcon({
         className: 'wild-wrap',
-        html: `<div class="halo-marker${sel}">${inner}</div>`,
+        html: `<div class="halo-marker${sel ? ' selected' : ''}">${inner}${count}</div>`,
         iconSize: [52, 52],
         iconAnchor: [26, 26],
       })

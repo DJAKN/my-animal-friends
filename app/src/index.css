@@ -204,6 +204,14 @@ body {
   transition: transform 0.3s ease;
 }
 .halo-marker.selected .wild-thumb { transform: scale(1.18); border-color: var(--sage); }
+.wild-count {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--sage-deep); color: var(--cream);
+  font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
+  border: 1.5px solid rgba(253, 251, 244, 0.95);
+}
+.leaflet-interactive.wild-range { transition: fill-opacity 0.4s ease; }
 
 .place-wrap { background: none; border: none; }
 .place-badge {

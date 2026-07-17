@@ -29,6 +29,7 @@ export const PLACE_META = {
   aquarium: { emoji: '🐠', label: 'Aquarium', tip: 'Tapping on glass startles fish — press a finger gently and wait; many curious species will come to you.' },
   bird_hide: { emoji: '🦉', label: 'Bird hide', tip: 'Move slowly, speak in whispers, and the birds will forget you are there.' },
   cafe: { emoji: '🐈', label: 'Animal cafe', tip: 'Let animals approach you first, and choose cafes that give their residents space and rest time.' },
+  farm: { emoji: '🐄', label: 'Farm', tip: 'Farm animals are curious and social — move calmly, ask before feeding, and wash your hands after visiting.' },
 }
 
 export const FACTS = [
