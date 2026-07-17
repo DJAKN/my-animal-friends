@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { fetchWikiSummary } from './api.js'
 import { TAXON_META, COEXIST_TIPS, PLACE_META, CONSERVATION } from './content.js'
+import { activityCopy, getActivityProfile } from './activity.js'
+import { fetchBirdSound } from './featureApi.js'
 
-export default function DetailCard({ item, onClose }) {
+export default function DetailCard({ item, timeBucket, season, onClose }) {
   const [wiki, setWiki] = useState(null)
+  const [sound, setSound] = useState(null)
 
   useEffect(() => {
     setWiki(null)
@@ -12,6 +15,16 @@ export default function DetailCard({ item, onClose }) {
       fetchWikiSummary(item).then((w) => alive && setWiki(w))
       return () => { alive = false }
     }
+  }, [item])
+
+  useEffect(() => {
+    setSound(null)
+    if (item?.kind !== 'wild' || item.iconicTaxon !== 'Aves' || !item.sciName) return
+    let alive = true
+    fetchBirdSound(item.sciName)
+      .then((recording) => alive && setSound(recording ? { ...recording, scientificName: item.sciName } : null))
+      .catch(() => {})
+    return () => { alive = false }
   }, [item])
 
   if (!item) return null
@@ -35,6 +48,7 @@ export default function DetailCard({ item, onClose }) {
 
   const taxon = TAXON_META[item.iconicTaxon] || TAXON_META.Unknown
   const cons = item.conservation ? CONSERVATION[item.conservation.toLowerCase()] : null
+  const activity = getActivityProfile(item)
   return (
     <aside className="detail glass">
       <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
@@ -56,6 +70,20 @@ export default function DetailCard({ item, onClose }) {
             ? `Generally seen around this area · ${item.count} recent sightings`
             : `Seen around here${item.observedOn ? ` · ${item.observedOn}` : ''}`}
         </p>
+        <div className="activity-note">
+          <b>{capitalize(activity.kind)} rhythm · {timeBucket}</b>
+          <span>{activityCopy(activity, timeBucket, season)}</span>
+        </div>
+        {sound?.scientificName === item.sciName && (
+          <div className="soundscape">
+            <div className="soundscape-heading"><b>Living soundscape</b><span>Bird recording</span></div>
+            <audio key={item.id} controls preload="none" src={sound.audioUrl}>Your browser does not support audio playback.</audio>
+            <p>
+              Recorded by {sound.recordist} · <a href={sound.sourceUrl} target="_blank" rel="noreferrer">xeno-canto</a>
+              {' · '}<a href={sound.licenseUrl} target="_blank" rel="noreferrer">license</a>
+            </p>
+          </div>
+        )}
         <div className="tip">
           <b>Living alongside</b>
           {COEXIST_TIPS[item.iconicTaxon] || COEXIST_TIPS.Unknown}
@@ -66,4 +94,8 @@ export default function DetailCard({ item, onClose }) {
       </div>
     </aside>
   )
+}
+
+function capitalize(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }

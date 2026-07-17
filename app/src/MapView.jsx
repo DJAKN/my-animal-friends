@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import { TAXON_META, PLACE_META } from './content.js'
+import { activityEmphasis, getActivityProfile } from './activity.js'
 
 // Imperative Leaflet wrapper. Marker layers are cheap to rebuild (<100 items),
 // so we regenerate them whenever the data or selection changes.
-export default function MapView({ view, user, wild, places, route, showWild, showPlaces, selectedId, onSelect }) {
+export default function MapView({ view, user, wild, places, route, showWild, showPlaces, selectedId, onSelect, timeBucket }) {
   const elRef = useRef(null)
   const mapRef = useRef(null)
   const layersRef = useRef(null)
@@ -71,6 +72,7 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
     if (!showWild) return
     for (const s of wild) {
       const sel = s.id === selectedId
+      const emphasis = activityEmphasis(getActivityProfile(s), timeBucket)
       if (s.spreadM) {
         L.circle([s.lat, s.lng], {
           radius: s.spreadM,
@@ -94,11 +96,17 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
         iconSize: [52, 52],
         iconAnchor: [26, 26],
       })
-      L.marker([s.lat, s.lng], { icon, zIndexOffset: sel ? 400 : 100 })
+      L.marker([s.lat, s.lng], {
+        icon,
+        title: s.commonName,
+        alt: s.commonName,
+        opacity: sel ? 1 : emphasis,
+        zIndexOffset: sel ? 400 : 100 + Math.round(emphasis * 100),
+      })
         .on('click', () => onSelectRef.current(s))
         .addTo(g)
     }
-  }, [wild, showWild, selectedId])
+  }, [wild, showWild, selectedId, timeBucket])
 
   // Animal place markers — small icon badges
   useEffect(() => {
@@ -115,7 +123,7 @@ export default function MapView({ view, user, wild, places, route, showWild, sho
         iconSize: [34, 34],
         iconAnchor: [17, 17],
       })
-      L.marker([p.lat, p.lng], { icon, zIndexOffset: sel ? 400 : 200 })
+      L.marker([p.lat, p.lng], { icon, title: p.name, alt: p.name, zIndexOffset: sel ? 400 : 200 })
         .on('click', () => onSelectRef.current(p))
         .addTo(g)
     }
