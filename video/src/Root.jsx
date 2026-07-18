@@ -16,7 +16,7 @@ export function Root() {
       <Composition
         id="RouteFlythrough"
         component={RouteFlythrough}
-        durationInFrames={450}
+        durationInFrames={780}
         fps={30}
         width={1920}
         height={1080}

@@ -5,8 +5,6 @@
 // the exact OSRM geometry (writes public/route-shibuya-ueno.json); paste its
 // `latlng` array in below to make the flythrough geographically exact.
 
-import { TAXON_META } from '../../app/src/content.js'
-
 export const ROUTE_LATLNG = [
   [35.6595, 139.7005], // Shibuya
   [35.6668, 139.7078],
@@ -19,27 +17,55 @@ export const ROUTE_LATLNG = [
   [35.7141, 139.7774], // Ueno
 ]
 
-// Convert lat/lng to a local metric plane (x east, y north) around the route.
+// ——— World building ———
 const MEAN_LAT = 35.686
 const M_PER_DEG_LAT = 111320
 const M_PER_DEG_LNG = 111320 * Math.cos((MEAN_LAT * Math.PI) / 180)
-const origin = ROUTE_LATLNG[0]
-function toMeters([lat, lng]) {
-  return { x: (lng - origin[1]) * M_PER_DEG_LNG, y: (lat - origin[0]) * M_PER_DEG_LAT }
+
+// Chaikin corner-cutting: rounds the polyline's hard corners into soft curves
+// so the camera never snaps its heading at a waypoint.
+function chaikin(points, iterations = 3) {
+  let pts = points
+  for (let it = 0; it < iterations; it++) {
+    const next = [pts[0]]
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]
+      const b = pts[i + 1]
+      next.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25])
+      next.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75])
+    }
+    next.push(pts[pts.length - 1])
+    pts = next
+  }
+  return pts
 }
 
-const pts = ROUTE_LATLNG.map(toMeters)
+const smooth = chaikin(ROUTE_LATLNG)
+const origin = smooth[0]
+const pts = smooth.map(([lat, lng]) => ({
+  x: (lng - origin[1]) * M_PER_DEG_LNG,
+  y: (lat - origin[0]) * M_PER_DEG_LAT,
+}))
+
+// Extend the road straight past Ueno so the drawable world never runs out ahead
+// of the camera (this is what previously tore the road apart near the end).
+{
+  const a = pts[pts.length - 2]
+  const b = pts[pts.length - 1]
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+  pts.push({ x: b.x + ((b.x - a.x) / len) * 600, y: b.y + ((b.y - a.y) / len) * 600 })
+}
+
 const cum = [0]
 for (let i = 1; i < pts.length; i++) {
-  const dx = pts[i].x - pts[i - 1].x
-  const dy = pts[i].y - pts[i - 1].y
-  cum.push(cum[i - 1] + Math.hypot(dx, dy))
+  cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y))
 }
-export const ROUTE_LENGTH = cum[cum.length - 1]
+// Travelable length ends at Ueno; the extra 600m exists only to keep drawing road.
+export const ROUTE_LENGTH = cum[cum.length - 2]
+export const DRAWABLE_LENGTH = cum[cum.length - 1]
 
-// Position (in meters) at arc length s along the polyline.
 export function posAt(s) {
-  const t = Math.max(0, Math.min(ROUTE_LENGTH, s))
+  const t = Math.max(0, Math.min(DRAWABLE_LENGTH, s))
   let i = 1
   while (i < cum.length && cum[i] < t) i++
   const a = pts[i - 1]
@@ -49,45 +75,30 @@ export function posAt(s) {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
 }
 
-// Travel bearing (radians, atan2(dy,dx)) at arc length s.
-export function bearingAt(s) {
-  const a = posAt(s - 3)
-  const b = posAt(s + 3)
+// Heading smoothed over a wide window — no whip-pans at corners.
+export function bearingAt(s, half = 130) {
+  const a = posAt(s - half)
+  const b = posAt(s + half)
   return Math.atan2(b.y - a.y, b.x - a.x)
 }
 
-function animal(commonName, sciName, iconicTaxon, count) {
-  return {
-    kind: 'wild',
-    id: `enc-${sciName}`,
-    commonName,
-    sciName,
-    iconicTaxon,
-    emoji: TAXON_META[iconicTaxon]?.emoji || '🐾',
-    count,
-  }
-}
-
-// Roadside encounters: t = progress along route (0..1); side = -1 left / +1 right;
-// offsetM = metres off the road centre.
-export const ENCOUNTERS = [
-  { ...animal('Large-billed Crow', 'Corvus macrorhynchos', 'Aves', 7), t: 0.12, side: -1, offsetM: 11 },
-  { ...animal('Japanese Raccoon Dog', 'Nyctereutes viverrinus', 'Mammalia', 4), t: 0.28, side: 1, offsetM: 13 },
-  { ...animal('Grey Heron', 'Ardea cinerea', 'Aves', 3), t: 0.44, side: -1, offsetM: 12 },
-  { ...animal('Azure-winged Magpie', 'Cyanopica cyanus', 'Aves', 5), t: 0.60, side: 1, offsetM: 10 },
-  { ...animal('Brown-eared Bulbul', 'Hypsipetes amaurotis', 'Aves', 6), t: 0.74, side: -1, offsetM: 12 },
-  { ...animal('Common Kingfisher', 'Alcedo atthis', 'Aves', 2), t: 0.88, side: 1, offsetM: 11 },
+// Roadside encounters: t = progress along route (0..1); side = -1 left / +1 right.
+const raw = [
+  { commonName: 'Large-billed Crow', sciName: 'Corvus macrorhynchos', count: 7, t: 0.12, side: -1, offsetM: 11 },
+  { commonName: 'Japanese Raccoon Dog', sciName: 'Nyctereutes viverrinus', count: 4, t: 0.28, side: 1, offsetM: 13 },
+  { commonName: 'Grey Heron', sciName: 'Ardea cinerea', count: 3, t: 0.44, side: -1, offsetM: 12 },
+  { commonName: 'Azure-winged Magpie', sciName: 'Cyanopica cyanus', count: 5, t: 0.6, side: 1, offsetM: 10 },
+  { commonName: 'Brown-eared Bulbul', sciName: 'Hypsipetes amaurotis', count: 6, t: 0.74, side: -1, offsetM: 12 },
+  { commonName: 'Common Kingfisher', sciName: 'Alcedo atthis', count: 2, t: 0.88, side: 1, offsetM: 11 },
 ]
 
-// Precompute each encounter's world position + arc length for projection.
-export const ENCOUNTER_WORLD = ENCOUNTERS.map((e) => {
+export const ENCOUNTER_WORLD = raw.map((e) => {
   const s = e.t * ROUTE_LENGTH
   const p = posAt(s)
   const b = bearingAt(s)
-  // Offset perpendicular to travel (left normal = (-sin, cos)).
   const nx = -Math.sin(b) * e.side
   const ny = Math.cos(b) * e.side
-  return { ...e, s, world: { x: p.x + nx * e.offsetM, y: p.y + ny * e.offsetM } }
+  return { ...e, id: `enc-${e.sciName}`, s, world: { x: p.x + nx * e.offsetM, y: p.y + ny * e.offsetM } }
 })
 
 export const START_LABEL = 'Shibuya'

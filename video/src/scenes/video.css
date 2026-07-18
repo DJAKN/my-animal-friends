@@ -38,13 +38,11 @@
   align-items: center;
   justify-content: center;
 }
-.fly-emoji {
+.fly-mark {
   border-radius: 50%;
-  background: rgba(253, 251, 244, 0.95);
+  background: rgba(253, 251, 244, 0.96);
   border: 3px solid #fff;
   box-shadow: 0 8px 22px rgba(52, 64, 46, 0.3);
-  width: 62%;
-  height: 62%;
   display: flex;
   align-items: center;
   justify-content: center;
